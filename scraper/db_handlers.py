@@ -1,3 +1,5 @@
+from sqlalchemy import and_
+
 from scraper.database import Hub, Article, Tag
 
 
@@ -62,5 +64,8 @@ def update_article(session, article):
         session.commit()
 
 
-def get_articles(session):
-    return session.query(Article).all()
+def get_articles(session, limit: int = 10):
+    return session.query(Article).filter(
+        and_(Article.content != ''),
+        and_(Article.link.notlike('%company%'))
+    ).limit(limit)

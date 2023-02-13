@@ -1,3 +1,5 @@
+import pickle
+
 import pika
 
 
@@ -22,7 +24,8 @@ def populate_queue(queue_name: str, urls: list):
     channel.queue_declare(queue=queue_name)
 
     for url in urls:
-        channel.basic_publish(exchange='', routing_key=queue_name, body=url)
+        channel.basic_publish(exchange='', routing_key=queue_name,
+                              body=pickle.dumps(url))
 
     print(" [x] Sent urls to queue")
     connection.close()

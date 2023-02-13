@@ -1,4 +1,5 @@
 import asyncio
+import pickle
 
 from rabbitmq_connection import consume_messages, populate_queue
 from scraper.database import session
@@ -51,8 +52,10 @@ async def process_article(article: object) -> object:
     :return: the processed article object
     """
     resp = await retry_get(base_url + article.link)
+    session.add(article)
     article = parse_article(article, resp)
     update_article(session, article)
+    print(article.title)
     return article
 
 
@@ -78,37 +81,19 @@ def is_not_company_blog(article: object) -> bool:
     return 'company' not in article.link
 
 
-processed_articles = set()
-
-
 async def process_articles():
+    """Manual queue from database and process articles"""
     for article in get_articles(session):
-        if is_not_processed(article) and is_not_company_blog(
-                article) and article.link not in processed_articles:
+        if is_not_processed(article) and is_not_company_blog(article):
             article = await process_article(article)
-            processed_articles.add(article.link)
             print(article.title)
 
 
-import pika
-
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-channel = connection.channel()
-
-channel.queue_declare(queue='articles')
-
-
-async def process_article(link):
-    article = await retry_get(link)
-    update_article(session, article)
-    print(article.title)
-
-
 def callback(ch, method, properties, body):
-    link = body.decode()
+    link = pickle.loads(body)
     asyncio.run(process_article(link))
 
 
 if __name__ == '__main__':
-    populate_queue('articles', ['/ru/post/25312/'])
+    populate_queue('articles', get_articles(session))
     consume_messages('articles', callback)
