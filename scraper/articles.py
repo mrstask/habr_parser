@@ -1,5 +1,6 @@
 import asyncio
 
+from rabbitmq_connection import consume_messages, populate_queue
 from scraper.database import session
 from scraper.db_handlers import get_articles, update_article, get_tags
 from scraper.helpers import retry_get
@@ -89,5 +90,25 @@ async def process_articles():
             print(article.title)
 
 
+import pika
+
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+channel = connection.channel()
+
+channel.queue_declare(queue='articles')
+
+
+async def process_article(link):
+    article = await retry_get(link)
+    update_article(session, article)
+    print(article.title)
+
+
+def callback(ch, method, properties, body):
+    link = body.decode()
+    asyncio.run(process_article(link))
+
+
 if __name__ == '__main__':
-    asyncio.run(process_articles())
+    populate_queue('articles', ['/ru/post/25312/'])
+    consume_messages('articles', callback)
