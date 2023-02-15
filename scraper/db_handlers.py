@@ -66,6 +66,6 @@ def update_article(session, article):
 
 def get_articles(session, limit: int = 10):
     return session.query(Article).filter(
-        and_(Article.content != ''),
+        and_(Article.content == ''),
         and_(Article.link.notlike('%company%'))
     ).limit(limit)
