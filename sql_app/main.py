@@ -1,9 +1,12 @@
+import json
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
 from . import crud, models, schemas
+from .crud import get_articles
 from .database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
@@ -44,7 +47,7 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 @app.post("/users/{user_id}/items/", response_model=schemas.Item)
 def create_item_for_user(
-    user_id: int, item: schemas.ItemCreate, db: Session = Depends(get_db)
+        user_id: int, item: schemas.ItemCreate, db: Session = Depends(get_db)
 ):
     return crud.create_user_item(db=db, item=item, user_id=user_id)
 
@@ -53,3 +56,21 @@ def create_item_for_user(
 def read_items(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     items = crud.get_items(db, skip=skip, limit=limit)
     return items
+
+
+@app.get("/articles")
+async def read_articles(db: Session = Depends(get_db)):
+    """
+    Get a list of articles.
+    """
+    articles = get_articles(db)
+    return JSONResponse(content=[article.serialize() for article in articles])
+
+
+@app.get("/articles/{article_id}")
+async def get_article(article_id: int):
+    """
+    Get a specific article by ID.
+    """
+    article = get_article_by_id(article_id)
+    return article

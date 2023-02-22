@@ -51,6 +51,14 @@ class Article(Base):
         self.date = date
         self.tags = tags
 
+    def serialize(self):
+        return {
+            "article_id": self.article_id,
+            "title": self.title,
+            "content": self.content,
+            "link": self.link,
+            "tags": [tag.name for tag in self.tags],
+        }
 
 class User(Base):
     __tablename__ = "users"
