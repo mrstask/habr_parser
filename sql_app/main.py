@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 from . import crud, models, schemas
 from .crud import get_articles
 from .database import SessionLocal, engine
+from .models import User, Article, Hub, Tag, ArticleTag
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -21,6 +22,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@app.on_event("startup")
+def startup():
+    Article.metadata.create_all(bind=engine)
+    User.metadata.create_all(bind=engine)
+    Hub.metadata.create_all(bind=engine)
+    Tag.metadata.create_all(bind=engine)
+    ArticleTag.metadata.create_all(bind=engine)
 
 
 @app.post("/users/", response_model=schemas.User)
