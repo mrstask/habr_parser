@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from . import crud, models, schemas
 from .crud import get_articles
 from .database import SessionLocal, engine
-from .models import User, Article, Hub, Tag, ArticleTag
+from .models import Article, Tag
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -26,11 +26,7 @@ def get_db():
 
 @app.on_event("startup")
 def startup():
-    Article.metadata.create_all(bind=engine)
-    User.metadata.create_all(bind=engine)
-    Hub.metadata.create_all(bind=engine)
-    Tag.metadata.create_all(bind=engine)
-    ArticleTag.metadata.create_all(bind=engine)
+    models.Base.metadata.create_all(bind=engine)
 
 
 @app.post("/users/", response_model=schemas.User)
@@ -77,10 +73,115 @@ async def read_articles(db: Session = Depends(get_db)):
     return JSONResponse(content=[article.serialize() for article in articles])
 
 
-@app.get("/articles/{article_id}")
-async def get_article(article_id: int):
+# Article endpoints
+@app.post("/articles/", response_model=Article)
+def create_article(article: ArticleCreate, db: Session = Depends(get_db)):
+    db_article = Article(**article.dict())
+    db.add(db_article)
+    db.commit()
+    db.refresh(db_article)
+    return db_article
+
+
+@app.get("/articles/", response_model=List[Article])
+def read_articles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    articles = db.query(Article).offset(skip).limit(limit).all()
+    return articles
+
+
+@app.get("/articles/{article_id}", response_model=Article)
+def read_article(article_id: int, db: Session = Depends(get_db)):
+    db_article = db.query(Article).filter(Article.id == article_id).first()
+    if not db_article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return db_article
+
+
+@app.put("/articles/{article_id}", response_model=Article)
+def update_article(article_id: int, article: ArticleUpdate, db: Session = Depends(get_db)):
+    db_article = db.query(Article).filter(Article.id == article_id).first()
+    if not db_article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    for field, value in article:
+        setattr(db_article, field, value)
+    db.commit()
+    db.refresh(db_article)
+    return db_article
+
+
+@app.delete("/articles/{article_id}", response_model=Article)
+def delete_article(article_id: int, db: Session = Depends(get_db)):
+    db_article = db.query(Article).filter(Article.id == article_id).first()
+    if not db_article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    db.delete(db_article)
+    db.commit()
+    return db_article
+
+
+# Tag endpoints
+@app.post("/tags/", response_model=Tag)
+def create_tag(tag: TagCreate, db: Session = Depends(get_db)):
+    db_tag = Tag(**tag.dict())
+    db.add(db_tag)
+    db.commit()
+    db.refresh(db_tag)
+    return db_tag
+
+
+@app.get("/tags/", response_model=List[Tag])
+def read_tags(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    tags = db.query(Tag).offset(skip).limit(limit).all()
+    return tags
+
+
+@app.get("/tags/{tag_id}", response_model=Tag)
+def read_tag(tag_id: int, db: Session = Depends(get_db)):
+    db_tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not db_tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return db_tag
+
+
+@app.put("/tags/{tag_id}", response_model=Tag)
+def update_tag(tag_id: int, tag: TagCreate, db: Session = Depends(get_db)):
+    db_tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not db_tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+@router.post("/images/upload/", response_model=str)
+def upload_image(file: UploadFile = File(...)):
     """
-    Get a specific article by ID.
+    Uploads an image file to the static directory and returns the filename.
     """
-    article = get_article_by_id(article_id)
-    return article
+    file_location = os.path.join(settings.STATIC_DIR, file.filename)
+    with open(file_location, "wb") as image:
+        content = file.file.read()
+        image.write(content)
+    return file.filename
+
+
+@router.put("/images/{filename}", response_model=str)
+def update_image(filename: str, file: UploadFile = File(...)):
+    """
+    Updates an existing image file in the static directory and returns the filename.
+    """
+    file_location = os.path.join(settings.STATIC_DIR, filename)
+    if not os.path.isfile(file_location):
+        raise HTTPException(status_code=404, detail="Image not found")
+    with open(file_location, "wb") as image:
+        content = file.file.read()
+        image.write(content)
+    return filename
+
+
+@router.delete("/images/{filename}", response_model=str)
+def delete_image(filename: str):
+    """
+    Deletes an existing image file in the static directory and returns the filename.
+    """
+    file_location = os.path.join(settings.STATIC_DIR, filename)
+    if not os.path.isfile(file_location):
+        raise HTTPException(status_code=404, detail="Image not found")
+    os.remove(file_location)
+    return filename
